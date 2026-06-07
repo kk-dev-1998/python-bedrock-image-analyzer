@@ -5,6 +5,8 @@ import json
 from dotenv import load_dotenv
 from pathlib import Path
 
+from app.schemas import ImageAnalysisResult
+
 load_dotenv()
 
 logger = logging.getLogger(__name__)
@@ -17,6 +19,17 @@ def load_prompt() -> str:
         return "Analyze the following image and provide insights."
     
     return prompt_path.read_text(encoding="utf-8")
+
+def parse_and_validate_response(response_text: str) -> ImageAnalysisResult:
+    try:
+        data = json.loads(response_text.strip())
+        return ImageAnalysisResult(**data)
+    except json.JSONDecodeError:
+        logger.error(f"Invalid JSON response: {response_text}")
+        raise ValueError("Bedrock returned invalid JSON")
+    except Exception as e:
+        logger.error(f"Validation error: {e}")
+        raise ValueError(f"Response validation failed: {str(e)}")
   
 
 def analyze_image(image_data: bytes, image_format: str) -> dict:
@@ -71,8 +84,10 @@ def analyze_image(image_data: bytes, image_format: str) -> dict:
         clean_text = clean_text.rsplit("```", 1)[0]
     clean_text = clean_text.strip()
 
+    validated_result = parse_and_validate_response(clean_text)
+
     return {
         "success": True,
-        "analysis": clean_text,
+        "analysis": validated_result,
         "model_used": model_id
     }

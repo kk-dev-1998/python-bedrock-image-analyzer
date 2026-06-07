@@ -21,7 +21,6 @@ def detect_image_format(content_type: str) -> str:
 @app.post("/analyze", response_model=AnalysisResponse)
 async def analyze(
     file: UploadFile = File(...),
-    prompt: str = "Describe the content of the image."
 ):
     #ceck file type
     if file.content_type not in ["image/jpeg", "image/jpg", "image/png", "image/webp"]:
@@ -41,9 +40,11 @@ async def analyze(
     image_format = detect_image_format(file.content_type)
     
     try:
-        result = analyze_image(image_bytes, prompt, image_format)
+        result = analyze_image(image_bytes, image_format)
         return AnalysisResponse(**result)
+    except ValueError as value_error:
+        raise HTTPException(status_code=422, detail=str(value_error))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
 
 handler = Mangum(app)
