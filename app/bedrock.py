@@ -3,13 +3,23 @@ import os
 import logging
 import json
 from dotenv import load_dotenv
+from pathlib import Path
 
 load_dotenv()
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
-def analyze_image(image_data: bytes, prompt: str, image_format: str) -> dict:
+def load_prompt() -> str:
+    prompt_path = Path(__file__).parent / "prompts" / "analyze_image.txt"
+    if not prompt_path.exists():
+        logger.warning(f"Prompt file not found at {prompt_path}. Using default prompt.")
+        return "Analyze the following image and provide insights."
+    
+    return prompt_path.read_text(encoding="utf-8")
+  
+
+def analyze_image(image_data: bytes, image_format: str) -> dict:
 
     bedrock_client = boto3.client(
         "bedrock-runtime",
@@ -24,7 +34,7 @@ def analyze_image(image_data: bytes, prompt: str, image_format: str) -> dict:
             "role": "user",
             "content": [
                 {
-                    "text": prompt
+                    "text": load_prompt()
                 },
                 {
                     "type": "image",
