@@ -23,3 +23,8 @@ class AnalysisResponse(BaseModel):
     success: bool
     analysis: ImageAnalysisResult
     model_used: str
+
+class ErrorResponse(BaseModel):
+    success: bool = False
+    error_code: str
+    error_message: str
