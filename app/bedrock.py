@@ -43,29 +43,26 @@ def analyze_image(image_data: bytes, image_format: str) -> dict:
 
     #generate request
     message ={
-        {
-            "role": "user",
-            "content": [
-                {
-                    "text": load_prompt()
-                },
-                {
-                    "type": "image",
-                    "image": {
-                        "source": {
-                            bytes: image_data                        },
-                        "format": image_format
-                    }
+        "role": "user",
+        "content": [
+            {
+                "text": load_prompt()
+            },
+            {
+                "image": {
+                    "source": {
+                        "bytes": image_data
+                    },
+                    "format": image_format
                 }
-            ]
-        }
+            }
+     ]
     }
 
     messages = [message]
 
     inference_config = {
-        "topP": 0.8,
-        "topK": 20
+        "topP": 0.8
     }
 
     response = bedrock_client.converse(
