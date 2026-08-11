@@ -13,12 +13,14 @@ Built with FASTAPI, It analyzes the object in the image and return what is this 
 [Client] -> POST /analyze (image) -> [FastAPI] -> [AWS Bedrock] -> JSON Response
 ```
 
+インフラ（AWS Lambda / API Gateway / S3 / IAM）はTerraformで別リポジトリ管理しています。
+→ [python-bedrock-image-analyzer-infra](https://github.com/kk-dev-1998/python-bedrock-image-analyzer-infra)
 ---
 
 ## Tech Stach
 - Python 3.14
 - Fast API
-- AWS Bedrock
+- Amazon Bedrock
 - Docker
 
 ## Getting Started
@@ -49,10 +51,10 @@ cp .env.example .env
 python -m venv .venv
 
 # Mac/Linux
-source venv/bin/activate
+source .venv/bin/activate
 
 # Windows
-venv\Scripts\activate
+.venv\Scripts\activate
 ```
 
 4. Install dependencies
@@ -92,50 +94,18 @@ Post /analyze : 画像解析(Image analysis)
 AWS Lambdaを利用する場合は、以下の手順を行う。
 If you want to use AWS Lambda, execute the below steps.
 
-### Windows Powershell
-1. Create build directory
+### Overview
 
-```powershell
-mkdir lambda-package
-makdir package
+1. Build the container image for Lambda
+```bash
+   docker build -t python-bedrock-image-analyzer .
 ```
+2. Push the image to ECR
+3. Run `terraform apply` in the infra repository (provisions Lambda / API Gateway / S3 / IAM)
 
-2. Install dependencies for Linux environment
+Environment variables (region, Bedrock inference profile ID, etc.) are configured automatically
+by Terraform, so no manual setup in the Lambda console is required.
 
-```powershell
-docker run --rm `
-  --entrypoint pip `
-  -v "C:\{your-path}\python-bedrock-image-analyzer:/var/task" `
-  public.ecr.aws/lambda/python:3.11 `
-  install -r /var/task/requirements.txt -t /var/task/lambda-package/package
-```
-
-3. Copy app directory
-
-```powershell
-xcopy /E /I app lambda-package\package\app
-```
-
-4. Create zip file
-```
-Open lambda-package\package in Explorer
-→ Select all（Ctrl+A）
-→ Right click → Compress to ZIP
-```
-
-5. Upload zip to AWS Lambda
-
-6. Set environment variables in Lambda console
-
-```
-AWS_USER_DEFAULT_REGION = us-east-1
-BEDROCK_MODEL_ID = us.anthropic.claude-haiku-4-5-20251001-v1:0
-```
-
-7. Update runtime setting
-
-```
-Handler : app.main.handler
-Memory  : 512MB
-Timeout : 30 sec
-```
+> Note: Since a container started with Docker uses the Lambda runtime format,
+> it cannot be accessed directly as an HTTP server via `docker run`.
+> For local testing, use the uvicorn startup described in "Getting Started" above.
