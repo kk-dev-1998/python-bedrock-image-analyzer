@@ -4,13 +4,35 @@ import logging
 import json
 from dotenv import load_dotenv
 from pathlib import Path
+from PIL import Image
+import io
 
 from app.schemas import ImageAnalysisResult
+
+MAX_DIMENSION = 8000  # Bedrock limit
+TARGET_MAX_DIMENSION = 1568  # Claude's recommended max (balance of image recognition accuracy and cost)
 
 load_dotenv()
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
+
+def resize_image_if_needed(image_data: bytes, image_format: str) -> bytes:
+    """Resize the image if it exceeds Bedrock's limit or is otherwise too large"""
+    img = Image.open(io.BytesIO(image_data))
+    width, height = img.size
+
+    if max(width, height) <= TARGET_MAX_DIMENSION:
+        return image_data
+
+    scale = TARGET_MAX_DIMENSION / max(width, height)
+    new_size = (int(width * scale), int(height * scale))
+    resized_img = img.resize(new_size, Image.LANCZOS)
+
+    buffer = io.BytesIO()
+    save_format = "JPEG" if image_format in ("jpeg", "jpg") else image_format.upper()
+    resized_img.save(buffer, format=save_format)
+    return buffer.getvalue()
 
 def load_prompt() -> str:
     prompt_path = Path(__file__).parent / "prompts" / "analyze_image.txt"
@@ -34,12 +56,14 @@ def parse_and_validate_response(response_text: str) -> ImageAnalysisResult:
 
 def analyze_image(image_data: bytes, image_format: str) -> dict:
 
+    image_data = resize_image_if_needed(image_data, image_format)
+    
     bedrock_client = boto3.client(
         "bedrock-runtime",
-        region_name=os.getenv("AWS_USER_DEFAULT_REGION", "us-east-1")
+        region_name=os.getenv("AWS_DEFAULT_REGION", "ap-northeast-1")
     )
 
-    model_id = os.getenv("BEDROCK_MODEL_ID", "us.anthropic.claude-haiku-4-5-20251001-v1:0")
+    model_id = os.getenv("BEDROCK_MODEL_ID", "jp.anthropic.claude-haiku-4-5-20251001-v1:0")
 
     #generate request
     message ={
@@ -71,8 +95,7 @@ def analyze_image(image_data: bytes, image_format: str) -> dict:
         inferenceConfig = inference_config
     )
 
-    response_body = json.loads(response["body"].read())
-    response_text = response_body["output"]["message"]["content"][0]["text"]
+    response_text = response["output"]["message"]["content"][0]["text"]
 
     clean_text = response_text.strip()
     if clean_text.startswith("```"):
