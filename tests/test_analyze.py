@@ -1,9 +1,18 @@
 import pytest
+import io
+from PIL import Image
 from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
 from app.main import app
 
 client = TestClient(app)
+
+# Dummy images
+def make_dummy_image_bytes(format: str = "JPEG", size=(10, 10)) -> bytes:
+    img = Image.new("RGB", size, color=(255, 0, 0))
+    buffer = io.BytesIO()
+    img.save(buffer, format=format)
+    return buffer.getvalue()
 
 # Dummy response from Bedrock for testing
 MOCK_BEDROCK_RESPONSE = {
@@ -15,13 +24,13 @@ MOCK_BEDROCK_RESPONSE = {
         "serial_number": "NA",
         "detail": "Dog stecker with a silver body"
     },
-    "model_used": "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+    "model_used": "jp.anthropic.claude-haiku-4-5-20251001-v1:0"
 }
 
 def test_analyze_invalid_file_type():
     response = client.post(
         "/analyze",
-        files={"file": ("test.pdf", b"dummy", "application/pdf")}
+        files={"file": ("test.pdf", make_dummy_image_bytes("JPEG"), "application/pdf")}
     )
     assert response.status_code == 400
     assert response.json()["error_code"] == "INVALID_FILE_TYPE"
@@ -29,7 +38,7 @@ def test_analyze_invalid_file_type():
 
 def test_analyze_valid_jpeg(tmp_path):
     with patch("app.main.analyze_image", return_value=MOCK_BEDROCK_RESPONSE):
-       dummy_image = b"\xff\xd8\xff" + b"0" * 100
+       dummy_image = make_dummy_image_bytes(format="JPEG")
        respnse = client.post(
             "/analyze",
             files={"file": ("test.jpg", dummy_image, "image/jpeg")}
@@ -39,7 +48,7 @@ def test_analyze_valid_jpeg(tmp_path):
 
 def test_analyze_valid_png(tmp_path):
     with patch("app.main.analyze_image", return_value=MOCK_BEDROCK_RESPONSE):
-       dummy_image = b"\x89PNG" + b"0" * 100
+       dummy_image = make_dummy_image_bytes(format="PNG")
        respnse = client.post(
             "/analyze",
             files={"file": ("test.png", dummy_image, "image/png")}
@@ -49,7 +58,7 @@ def test_analyze_valid_png(tmp_path):
 
 def test_analyze_valid_webp(tmp_path):
     with patch("app.main.analyze_image", return_value=MOCK_BEDROCK_RESPONSE):
-       dummy_image = b"RIFF" + b"0" * 100
+       dummy_image = make_dummy_image_bytes(format="WEBP")
        respnse = client.post(
             "/analyze",
             files={"file": ("test.webp", dummy_image, "image/webp")}
@@ -82,7 +91,7 @@ def test_analyze_bedrock_invalid_json():
         mock_client.converse.side_effect = ValueError("Bedrock returned invalid JSON")
         response = client.post(
             "/analyze",
-            files={"file": ("test.jpg", b"dummy", "image/jpeg")}
+            files={"file": ("test.jpg", make_dummy_image_bytes("JPEG"), "image/jpeg")}
         )
         assert response.status_code == 422
         assert response.json()["error_code"] == "INVALID_JSON"
@@ -94,7 +103,7 @@ def test_analyze_internal_error():
         mock_client.converse.side_effect = Exception("Unexpected error")
         response = client.post(
             "/analyze",
-            files={"file": ("test.jpg", b"dummy", "image/jpeg")}
+            files={"file": ("test.jpg", make_dummy_image_bytes("JPEG"), "image/jpeg")}
         )
         assert response.status_code == 500
         assert response.json()["error_code"] == "INTERNAL_ERROR"
