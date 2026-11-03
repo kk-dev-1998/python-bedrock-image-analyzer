@@ -1,5 +1,7 @@
 import io
 import json
+
+import pytest
 from unittest.mock import MagicMock
 
 from PIL import Image
@@ -98,3 +100,27 @@ def test_cases_template_is_valid_json():
     ids = [c["id"] for c in cases]
     assert len(ids) == len(set(ids))
     assert all({"id", "category", "image", "expected"} <= set(c) for c in cases)
+
+
+def test_load_cases_merges_files_and_rejects_duplicate_ids(tmp_path):
+    def write(name, ids):
+        path = tmp_path / name
+        cases = [{"id": i, "category": "x", "image": "a.jpg", "expected": {}} for i in ids]
+        path.write_text(json.dumps({"cases": cases}), encoding="utf-8")
+        return path
+
+    public = write("public.json", ["case-01", "case-02"])
+    private = write("private.json", ["case-03"])
+    assert [c["id"] for c in run_eval.load_cases([public, private])] == ["case-01", "case-02", "case-03"]
+
+    clash = write("clash.json", ["case-02"])
+    with pytest.raises(ValueError, match="duplicate case id"):
+        run_eval.load_cases([public, clash])
+
+
+def test_private_example_does_not_clash_with_public_cases():
+    public = run_eval.BASE_DIR / "cases.json"
+    example = run_eval.BASE_DIR / "cases.private.example.json"
+    cases = run_eval.load_cases([public, example])
+    assert all({"id", "category", "image", "expected"} <= set(c) for c in cases)
+    assert all(c["image"].startswith("images_private/") for c in json.loads(example.read_text(encoding="utf-8"))["cases"])

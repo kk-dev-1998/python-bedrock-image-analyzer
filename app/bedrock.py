@@ -11,6 +11,7 @@ from app.schemas import ImageAnalysisResult
 
 MAX_DIMENSION = 8000  # Bedrock limit
 TARGET_MAX_DIMENSION = 1568  # Claude's recommended max (balance of image recognition accuracy and cost)
+MAX_ATTEMPTS = 2  # 1 retry when the model output fails JSON parsing / validation
 
 load_dotenv()
 
@@ -41,6 +42,15 @@ def load_prompt() -> str:
         return "Analyze the following image and provide insights."
     
     return prompt_path.read_text(encoding="utf-8")
+
+def clean_response_text(response_text: str) -> str:
+    """Strip surrounding whitespace and a Markdown code fence, if present."""
+    clean_text = response_text.strip()
+    if clean_text.startswith("```"):
+        clean_text = clean_text.split("\n", 1)[1]
+    if clean_text.endswith("```"):
+        clean_text = clean_text.rsplit("```", 1)[0]
+    return clean_text.strip()
 
 def parse_and_validate_response(response_text: str) -> ImageAnalysisResult:
     try:
@@ -89,22 +99,22 @@ def analyze_image(image_data: bytes, image_format: str) -> dict:
         "topP": 0.8
     }
 
-    response = bedrock_client.converse(
-        modelId = model_id,
-        messages = messages,
-        inferenceConfig = inference_config
-    )
-
-    response_text = response["output"]["message"]["content"][0]["text"]
-
-    clean_text = response_text.strip()
-    if clean_text.startswith("```"):
-        clean_text = clean_text.split("\n", 1)[1]
-    if clean_text.endswith("```"):
-        clean_text = clean_text.rsplit("```", 1)[0]
-    clean_text = clean_text.strip()
-
-    validated_result = parse_and_validate_response(clean_text)
+    # The model occasionally breaks the output contract (e.g. "detail" over 50 chars).
+    # Retry once so a one-off format slip does not surface as an error to the caller.
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        response = bedrock_client.converse(
+            modelId = model_id,
+            messages = messages,
+            inferenceConfig = inference_config
+        )
+        clean_text = clean_response_text(response["output"]["message"]["content"][0]["text"])
+        try:
+            validated_result = parse_and_validate_response(clean_text)
+            break
+        except ValueError as e:
+            if attempt == MAX_ATTEMPTS:
+                raise
+            logger.warning(f"Output rejected (attempt {attempt}/{MAX_ATTEMPTS}), retrying: {e}")
 
     return {
         "success": True,

@@ -2,11 +2,16 @@
 
 Usage (from the repository root):
     python -m evaluation.run_eval
-    python -m evaluation.run_eval --repeat 3
+    python -m evaluation.run_eval --repeat 3 --sleep 2
 
 WARNING: this calls Bedrock for real, so it costs money.
 Credentials and the model ID are read from .env / the environment, exactly like the app.
 Results are written to evaluation/results/ (git-ignored).
+
+Cases are read from evaluation/cases.json (public, synthetic images) and, if it exists,
+evaluation/cases.private.json (git-ignored). Put your own photos in
+evaluation/images_private/ (git-ignored) and describe them in cases.private.json, so
+they never get published. See cases.private.example.json for the format.
 """
 
 import argparse
@@ -20,6 +25,19 @@ from evaluation.scoring import SCORED_FIELDS, score_case, summarize
 
 BASE_DIR = Path(__file__).parent
 FORMATS = {".jpg": "jpeg", ".jpeg": "jpeg", ".png": "png", ".webp": "webp"}
+DEFAULT_CASE_FILES = [BASE_DIR / "cases.json", BASE_DIR / "cases.private.json"]
+
+
+def load_cases(paths: list[Path]) -> list[dict]:
+    """Load cases from several files. Case IDs must be unique across all files."""
+    cases, seen = [], set()
+    for path in paths:
+        for case in json.loads(path.read_text(encoding="utf-8"))["cases"]:
+            if case["id"] in seen:
+                raise ValueError(f"duplicate case id: {case['id']} (in {path.name})")
+            seen.add(case["id"])
+            cases.append(case)
+    return cases
 
 
 def run_case(case: dict, base_dir: Path = BASE_DIR) -> dict:
@@ -84,13 +102,21 @@ def print_summary(summary: dict, results: list[dict], cases: dict) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    parser.add_argument("--cases", type=Path, default=BASE_DIR / "cases.json")
+    parser.add_argument(
+        "--cases", type=Path, nargs="+",
+        help="case files (default: cases.json and, if present, cases.private.json)",
+    )
     parser.add_argument("--repeat", type=int, default=1, help="runs per case")
+    parser.add_argument("--sleep", type=float, default=0.0, help="seconds to wait between calls (avoids throttling)")
+    parser.add_argument("--only", nargs="+", help="run only these case IDs")
     parser.add_argument("--out", type=Path, default=BASE_DIR / "results")
     args = parser.parse_args()
 
-    cases = json.loads(args.cases.read_text(encoding="utf-8"))["cases"]
+    case_files = args.cases or [p for p in DEFAULT_CASE_FILES if p.exists()]
+    cases = load_cases(case_files)
     cases_by_id = {c["id"]: c for c in cases}
+    if args.only:
+        cases = [c for c in cases if c["id"] in args.only]
 
     runnable = []
     for case in cases:
