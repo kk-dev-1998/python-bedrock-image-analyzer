@@ -220,3 +220,10 @@ __marimo__/
 
 #package for AWS Lambda
 lambda-package/
+
+# Evaluation outputs (generated; contain model outputs and timings)
+evaluation/results/
+
+# Private evaluation photos and their expected values (never publish)
+evaluation/images_private/
+evaluation/cases.private.json
