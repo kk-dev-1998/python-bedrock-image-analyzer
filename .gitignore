@@ -220,3 +220,6 @@ __marimo__/
 
 #package for AWS Lambda
 lambda-package/
+
+# Evaluation outputs (generated; contain model outputs and timings)
+evaluation/results/
