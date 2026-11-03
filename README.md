@@ -23,6 +23,14 @@ Built with FASTAPI, It analyzes the object in the image and return what is this 
 - Amazon Bedrock
 - Docker
 
+## Security
+- 依存関係スキャン: `pip-audit` を、すべてのプルリクエスト、`main` へのプッシュ、および毎週(月曜、JST)に、バージョン固定済みの `requirements.txt` に対して実行します。脆弱性が見つかるとワークフローは失敗します。
+- Dependency scan: `pip-audit` runs on every pull request, on pushes to `main`, and weekly (Mondays, JST), against the pinned `requirements.txt`. A finding fails the workflow.
+- 依存関係の更新: Dependabot が、Pythonパッケージと GitHub Actions の更新PRを毎週作成します。マイナー/パッチ更新は1つのPRにまとめられ、メジャー更新は別のPRになります。
+- Dependency updates: Dependabot opens weekly update PRs for Python packages and GitHub Actions. Minor and patch updates are grouped into one PR; major updates are separate.
+- スキャン導入時に、固定していた7パッケージ(Pillow、Starlette、urllib3 など)で既知の脆弱性が見つかりました。同じPRで更新し、テストと評価を再実行しました。
+- When the scan was introduced it found known vulnerabilities in 7 pinned packages (e.g. Pillow, Starlette, urllib3). They were updated in the same PR; the test suite and the evaluation were re-run.
+
 ## Getting Started
 
 ### Prerequisites
