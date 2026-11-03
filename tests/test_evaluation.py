@@ -124,3 +124,25 @@ def test_private_example_does_not_clash_with_public_cases():
     cases = run_eval.load_cases([public, example])
     assert all({"id", "category", "image", "expected"} <= set(c) for c in cases)
     assert all(c["image"].startswith("images_private/") for c in json.loads(example.read_text(encoding="utf-8"))["cases"])
+
+
+def test_resolve_image_path_rejects_paths_outside_base_dir(tmp_path):
+    base = tmp_path / "evaluation"
+    (base / "images").mkdir(parents=True)
+
+    assert run_eval.resolve_image_path(base, "images/a.jpg") == (base / "images" / "a.jpg").resolve()
+    with pytest.raises(ValueError, match="escapes"):
+        run_eval.resolve_image_path(base, "../secret.jpg")
+    with pytest.raises(ValueError, match="escapes"):
+        run_eval.resolve_image_path(base, "images/../../secret.jpg")
+
+
+def test_run_case_records_error_for_escaping_image_path(tmp_path, monkeypatch):
+    called = []
+    monkeypatch.setattr(run_eval, "analyze_image", lambda data, fmt: called.append(1))
+    case = {"id": "c1", "category": "x", "image": "../outside.jpg", "expected": {"brand": "NA"}}
+    result = run_eval.run_case(case, base_dir=tmp_path)
+
+    assert "escapes" in result["error"]
+    assert result["fields"] == {"brand": False}
+    assert not called  # Bedrock must not be called

@@ -32,6 +32,8 @@ Built with FASTAPI, It analyzes the object in the image and return what is this 
 - When the scan was introduced it found known vulnerabilities in 7 pinned packages (e.g. Pillow, Starlette, urllib3). They were updated in the same PR; the test suite and the evaluation were re-run.
 - DependabotのPRはマージ前にテストと `pip-audit` が実行されます。固定している依存関係と衝突するメジャー更新(例: python-dateutil 3 と botocore)は、アップストリームが対応するまで無視します。
 - Dependabot PRs run the test suite and `pip-audit` before merge; major updates that conflict with pinned dependencies (e.g. python-dateutil 3 vs botocore) are ignored until upstream supports them.
+- Snyk: リポジトリをSnykにインポートし(依存関係、Dockerfile、コード解析)、2次チェックとしてダッシュボードからスキャンしています。Snykによるプルリクエストのチェックは有効にしていません。
+- Snyk: the repository is imported into Snyk (dependencies, Dockerfile, code analysis) and scanned from its dashboard as a second opinion. Pull request checks from Snyk are not enabled.
 
 ## Getting Started
 

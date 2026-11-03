@@ -40,10 +40,17 @@ def load_cases(paths: list[Path]) -> list[dict]:
     return cases
 
 
+def resolve_image_path(base_dir: Path, image: str) -> Path:
+    """Resolve a case's image path and refuse anything outside base_dir (e.g. "../../.env")."""
+    image_path = (base_dir / image).resolve()
+    if not image_path.is_relative_to(base_dir.resolve()):
+        raise ValueError(f"image path escapes the evaluation directory: {image}")
+    return image_path
+
+
 def run_case(case: dict, base_dir: Path = BASE_DIR) -> dict:
     """Call analyze_image for one case and score the output."""
     expected = case["expected"]
-    image_path = base_dir / case["image"]
 
     result = {
         "id": case["id"],
@@ -56,6 +63,7 @@ def run_case(case: dict, base_dir: Path = BASE_DIR) -> dict:
 
     started = time.perf_counter()
     try:
+        image_path = resolve_image_path(base_dir, case["image"])
         response = analyze_image(
             image_path.read_bytes(), FORMATS[image_path.suffix.lower()]
         )
